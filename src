@@ -1,0 +1,96 @@
+pip install sqlite3
+pip install smtplib
+pip install paramiko
+
+import os
+import shutil
+import sqlite3
+import smtplib
+import paramiko
+from email.mime.text import MIMEText
+from datetime import datetime
+
+# Configurações de Backup
+DATABASE_PATH = 'caminho_para_o_banco_de_dados/users.db'  # Caminho do banco de dados SQLite
+BACKUP_DIR = 'caminho_para_pasta_de_backup/'  # Caminho para onde os backups serão armazenados
+BACKUP_FILENAME = f"backup_{datetime.now().strftime('%Y-%m-%d')}.db"
+
+# Configurações de Email
+SMTP_SERVER = 'smtp.seuservidor.com'
+SMTP_PORT = 587
+EMAIL_USER = 'seu_email@example.com'
+EMAIL_PASSWORD = 'sua_senha'
+EMAIL_RECEIVER = 'destinatario@example.com'
+
+# Configurações SSH (Opcional, se você quiser enviar o backup para um servidor remoto)
+USE_SSH = False
+SSH_HOST = 'servidor_remoto.com'
+SSH_PORT = 22
+SSH_USER = 'usuario_ssh'
+SSH_PASSWORD = 'senha_ssh'
+REMOTE_DIR = '/caminho/remoto/do/backup/'
+
+def create_backup():
+    """Função para criar backup do banco de dados SQLite"""
+    if not os.path.exists(BACKUP_DIR):
+        os.makedirs(BACKUP_DIR)
+
+    backup_path = os.path.join(BACKUP_DIR, BACKUP_FILENAME)
+    try:
+        shutil.copy(DATABASE_PATH, backup_path)
+        print(f"Backup criado com sucesso: {backup_path}")
+        return True, backup_path
+    except Exception as e:
+        print(f"Erro ao criar o backup: {e}")
+        return False, str(e)
+
+def send_email(subject, message):
+    """Função para enviar e-mail com o status do backup"""
+    try:
+        msg = MIMEText(message)
+        msg['From'] = EMAIL_USER
+        msg['To'] = EMAIL_RECEIVER
+        msg['Subject'] = subject
+
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(EMAIL_USER, EMAIL_PASSWORD)
+            server.sendmail(EMAIL_USER, EMAIL_RECEIVER, msg.as_string())
+
+        print("E-mail enviado com sucesso!")
+    except Exception as e:
+        print(f"Erro ao enviar e-mail: {e}")
+
+def send_backup_via_ssh(backup_path):
+    """Função para enviar o backup para um servidor remoto via SSH"""
+    try:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(SSH_HOST, port=SSH_PORT, username=SSH_USER, password=SSH_PASSWORD)
+
+        sftp = ssh.open_sftp()
+        sftp.put(backup_path, os.path.join(REMOTE_DIR, BACKUP_FILENAME))
+        sftp.close()
+        ssh.close()
+
+        print("Backup enviado para o servidor remoto com sucesso!")
+    except Exception as e:
+        print(f"Erro ao enviar o backup via SSH: {e}")
+
+def main():
+    """Função principal para automatização do backup"""
+    # Criar Backup
+    backup_status, backup_info = create_backup()
+
+    # Enviar Email de Confirmação
+    if backup_status:
+        send_email("Backup Bem-Sucedido", f"O backup foi criado com sucesso: {backup_info}")
+    else:
+        send_email("Falha no Backup", f"Erro ao criar o backup: {backup_info}")
+
+    # Enviar Backup para o Servidor Remoto (se configurado)
+    if USE_SSH and backup_status:
+        send_backup_via_ssh(backup_info)
+
+if __name__ == "__main__":
+    main()
