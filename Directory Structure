@@ -1,0 +1,8 @@
+automacao_backup/
+│
+├── .gitignore
+├── README.md
+├── requirements.txt
+├── backup_script.py
+└── templates/
+    ├── email_template.txt
